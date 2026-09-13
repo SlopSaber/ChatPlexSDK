@@ -90,6 +90,20 @@ namespace CP_SDK.Chat.Models.Twitch
     [Serializable]
     public class Helix_Prediction : IHelixModel
     {
+        public static class Status
+        {
+            public const EHelix_PredictionStatus ACTIVE = EHelix_PredictionStatus.ACTIVE;
+            public const EHelix_PredictionStatus LOCKED = EHelix_PredictionStatus.LOCKED;
+            public const EHelix_PredictionStatus RESOLVED = EHelix_PredictionStatus.RESOLVED;
+            public const EHelix_PredictionStatus CANCELED = EHelix_PredictionStatus.CANCELED;
+        }
+
+        public static class Color
+        {
+            public const EHelix_PredictionColor BLUE = EHelix_PredictionColor.BLUE;
+            public const EHelix_PredictionColor PINK = EHelix_PredictionColor.PINK;
+        }
+
         [Serializable]
         public class Outcome
         {
@@ -150,6 +164,16 @@ namespace CP_SDK.Chat.Models.Twitch
     [Serializable]
     public class Helix_Poll : IHelixModel
     {
+        public static class Status
+        {
+            public const EHelix_PollStatus ACTIVE = EHelix_PollStatus.ACTIVE;
+            public const EHelix_PollStatus COMPLETED = EHelix_PollStatus.COMPLETED;
+            public const EHelix_PollStatus TERMINATED = EHelix_PollStatus.TERMINATED;
+            public const EHelix_PollStatus ARCHIVED = EHelix_PollStatus.ARCHIVED;
+            public const EHelix_PollStatus MODERATED = EHelix_PollStatus.MODERATED;
+            public const EHelix_PollStatus INVALID = EHelix_PollStatus.INVALID;
+        }
+
         [Serializable]
         public class Choice
         {

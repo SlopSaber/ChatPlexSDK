@@ -357,6 +357,11 @@ namespace CP_SDK.Chat.Services.Twitch
             );
         }
 
+        public void EndPrediction(string p_ID, EHelix_PredictionStatus p_Status, string p_Winner, Action<EHelixResult, Helix_Prediction> p_Callback)
+        {
+            EndPrediction(new Helix_EndPrediction_Query(p_ID, p_Status, p_Winner), (p_Result, p_Prediction, _) => p_Callback?.Invoke(p_Result, p_Prediction));
+        }
+
         ////////////////////////////////////////////////////////////////////////////
         /// Poll
         ////////////////////////////////////////////////////////////////////////////
