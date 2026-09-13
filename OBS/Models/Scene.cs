@@ -20,6 +20,10 @@ namespace CP_SDK.OBS.Models
         public int              sceneIndex  { get; private set; } = -1;
         public List<SceneItem>  sceneItems  { get; private set; } = null;
 
+        // Compatibility names used by older ChatIntegrations modules.
+        public string name => sceneName;
+        public List<SceneItem> sources => sceneItems;
+
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
 
@@ -166,6 +170,15 @@ namespace CP_SDK.OBS.Models
 
             return null;
         }
+
+        public SceneItem GetSourceByName(string p_Name)
+            => GetSourceItemByName(p_Name);
+
+        public void SetAsPreview()
+            => SetCurrentPreview();
+
+        public void SwitchTo()
+            => SetCurrentProgram();
         /// <summary>
         /// Get source by scene item ID
         /// </summary>

@@ -22,6 +22,16 @@ namespace CP_SDK.Chat.Services.Twitch
         InvalidResult
     }
 
+    public enum TwitchHelixResult
+    {
+        OK,
+        InvalidRequest,
+        AuthorizationFailed,
+        NetworkError,
+        TokenMissingScope,
+        InvalidResult
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////////////////
 
@@ -73,6 +83,7 @@ namespace CP_SDK.Chat.Services.Twitch
         public Network.WebClientUnity   WebClient           => m_WebClient;
         public Network.WebClientCore    WebClientEx         => m_WebClientEx;
         public string                   BroadcasterUserID   => m_TokenUserID;
+        public string                   BroadcasterID      => m_TokenUserID;
         public string                   TokenUserID         => m_TokenUserID;
         public string                   TokenUserName       => m_TokenUserName;
 
@@ -306,6 +317,9 @@ namespace CP_SDK.Chat.Services.Twitch
             );
         }
 
+        public void CreateClip(Action<TwitchHelixResult, Helix_Clip> p_Callback)
+            => CreateClip(new Helix_CreateClip_Query(), (p_Result, p_Clip, _) => p_Callback?.Invoke((TwitchHelixResult)p_Result, p_Clip));
+
         ////////////////////////////////////////////////////////////////////////////
         /// Marker
         ////////////////////////////////////////////////////////////////////////////
@@ -321,6 +335,9 @@ namespace CP_SDK.Chat.Services.Twitch
                 (p_CallResult, p_Result, p_Error) => p_Callback?.Invoke(p_CallResult, p_Result?.data?.Length > 0 ? p_Result.data[0] : null, p_Error)
             );
         }
+
+        public void CreateMarker(string p_Description, Action<EHelixResult, Helix_Marker, string> p_Callback)
+            => CreateMarker(new Helix_CreateMarker_Query(p_Description), p_Callback);
 
         ////////////////////////////////////////////////////////////////////////////
         /// Prediction

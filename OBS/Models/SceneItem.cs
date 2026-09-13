@@ -85,6 +85,11 @@ namespace CP_SDK.OBS.Models
         public string               sceneItemBlendMode  { get; internal set; } = "";
         public string               inputKind           { get; internal set; } = "";
 
+        // Compatibility names used by older ChatIntegrations modules.
+        public string name => sourceName;
+        public List<SceneItem> groupChildren => SubItems;
+        public bool render => sceneItemEnabled;
+
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
 
@@ -330,6 +335,9 @@ namespace CP_SDK.OBS.Models
         /// <param name="p_Enabled">New value</param>
         public void SetEnabled(bool p_Enabled)
             => Service.SetSceneItemEnabled(OwnerScene, OwnerSceneItem, this, p_Enabled);
+
+        public void SetVisible(bool p_Visible)
+            => SetEnabled(p_Visible);
         /// <summary>
         /// Set this source muted
         /// </summary>

@@ -96,6 +96,9 @@ namespace CP_SDK.OBS
         public static Models.Scene      ActivePreviewScene      { get; private set; } = null;
         public static Models.Transition ActiveTransition        { get; private set; } = null;
 
+        // Compatibility names used by older ChatIntegrations modules.
+        public static Models.Scene ActiveScene => ActiveProgramScene;
+
         public static ConcurrentDictionary<string, Models.Scene>        Scenes      => m_Scenes;
         public static ConcurrentDictionary<string, Models.Transition>   Transitions => m_Transitions;
 
@@ -436,10 +439,12 @@ namespace CP_SDK.OBS
         /// Start stream
         /// </summary>
         public static void StartStream() => SendRequest("StartStream");
+        public static void StartStreaming() => StartStream();
         /// <summary>
         /// Stop streaming
         /// </summary>
         public static void StopStream() => SendRequest("StopStream");
+        public static void StopStreaming() => StopStream();
 
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
@@ -464,6 +469,18 @@ namespace CP_SDK.OBS
                 ["parameterName"]       = "FilenameFormatting",
                 ["parameterValue"]      = p_Format
             });
+        }
+
+        public static void SetRecordFilenameFormat(string p_Format)
+            => SetProfileParameter_Output_FilenameFormatting(p_Format);
+
+        public static void PreviewTransitionToScene(int p_DurationMS = -1, string p_TransitionName = null)
+        {
+            Models.Transition l_Transition = null;
+            if (!string.IsNullOrEmpty(p_TransitionName))
+                TryGetTransitionByName(p_TransitionName, out l_Transition);
+
+            CustomStudioModeTransition(p_DurationMS, l_Transition);
         }
 
         ////////////////////////////////////////////////////////////////////////////
