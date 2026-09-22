@@ -93,7 +93,6 @@ namespace CP_SDK.Chat.Services.Twitch
         private TwitchMessageParser     m_MessageParser;
         private TwitchDataProvider      m_DataProvider;
         private Network.WebSocketClient m_IRCWebSocket;
-        private TwitchEventSub          Eventsub;
         private DateTime                m_LastResetTime             = DateTime.UtcNow;
         private DateTime                m_LastIRCSubPing            = DateTime.UtcNow;
         private Task                    m_ProcessQueuedMessagesTask = null;

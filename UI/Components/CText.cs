@@ -128,7 +128,7 @@ namespace CP_SDK.UI.Components
         /// <returns></returns>
         public CText SetWrapping(bool p_Wrapping)
         {
-            TMProUGUI.enableWordWrapping = p_Wrapping;
+            TMProUGUI.textWrappingMode = p_Wrapping ? TMPro.TextWrappingModes.Normal : TMPro.TextWrappingModes.NoWrap;
             return this;
         }
     }

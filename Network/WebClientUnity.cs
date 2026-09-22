@@ -280,7 +280,7 @@ namespace CP_SDK.Network
                         yield return l_Waiter;
                         try { p_Progress?.Report(l_Request.downloadProgress); } catch { }
 
-                        if (p_Token.IsCancellationRequested || l_Request.isDone || l_Request.isHttpError || l_Request.isNetworkError)
+                        if (p_Token.IsCancellationRequested || l_Request.isDone)
                             break;
                     } while (true);
                 }

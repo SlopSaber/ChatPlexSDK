@@ -91,7 +91,7 @@ namespace CP_SDK.Network
         {
             StatusCode          = (HttpStatusCode)p_Request.responseCode;
             ReasonPhrase        = p_Request.error;
-            IsSuccessStatusCode = !(p_Request.isHttpError || p_Request.isNetworkError);
+            IsSuccessStatusCode = p_Request.result == UnityWebRequest.Result.Success;
             ShouldRetry         = IsSuccessStatusCode ? false : (p_Request.responseCode < 400 || p_Request.responseCode >= 500);
 
             m_BodyBytes         = p_Request.downloadHandler.data;
