@@ -21,6 +21,12 @@ namespace CP_SDK.Unity
         private static Material m_CustomMaterial        = null;
         private static Material m_CustomPreviewMaterial = null;
 
+        /// <summary>Optional host factory for an owned particle material.</summary>
+        public static System.Func<Material> MaterialFactory { get; set; }
+
+        /// <summary>Optional host factory for an owned preview material.</summary>
+        public static System.Func<Material> PreviewMaterialFactory { get; set; }
+
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
 
@@ -35,6 +41,15 @@ namespace CP_SDK.Unity
 
             if (!m_Material)
             {
+                if (MaterialFactory != null)
+                {
+                    m_Material = MaterialFactory();
+                    SetMaterialTexture(m_Material, Texture2DU.CreateFromRaw(
+                        Misc.Resources.FromRelPath(Assembly.GetExecutingAssembly(), "CP_SDK._Resources.Heart.png")
+                    ));
+                    return m_Material;
+                }
+
                 if (ChatPlexSDK.EmbedAssetBundle != null)
                 {
                     var l_BundleMaterial = ChatPlexSDK.EmbedAssetBundle.LoadAsset<Material>("EnhancedImageParticleMaterial");
@@ -75,6 +90,12 @@ namespace CP_SDK.Unity
 
             if (!m_PreviewMaterial)
             {
+                if (PreviewMaterialFactory != null)
+                {
+                    m_PreviewMaterial = PreviewMaterialFactory();
+                    return m_PreviewMaterial;
+                }
+
                 if (ChatPlexSDK.EmbedAssetBundle != null)
                 {
                     var l_BundleMaterial = ChatPlexSDK.EmbedAssetBundle.LoadAsset<Material>("EnhancedImagePreviewMaterial");
@@ -96,8 +117,8 @@ namespace CP_SDK.Unity
             m_CustomMaterial = null;
             m_CustomPreviewMaterial = null;
 
-            if (!m_Material)
-                return;
+            MaterialFactory = null;
+            PreviewMaterialFactory = null;
 
             GameObject.Destroy(m_Material);
             GameObject.Destroy(m_PreviewMaterial);
@@ -137,17 +158,7 @@ namespace CP_SDK.Unity
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static Texture GetMaterialTexture(Material p_Material)
         {
-            switch (ChatPlexSDK.RenderPipeline)
-            {
-                case ERenderPipeline.BuiltIn:
-                    return p_Material.GetTexture(SHADER_MAIN_TEXT);
-
-                case ERenderPipeline.URP:
-                    return p_Material.GetTexture(SHADER_BASE_MAP);
-
-            }
-
-            return null;
+            return p_Material.GetTexture(p_Material.HasProperty(SHADER_BASE_MAP) ? SHADER_BASE_MAP : SHADER_MAIN_TEXT);
         }
         /// <summary>
         /// Set material texture
@@ -157,17 +168,7 @@ namespace CP_SDK.Unity
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void SetMaterialTexture(Material p_Material, Texture p_Texture)
         {
-            switch (ChatPlexSDK.RenderPipeline)
-            {
-                case ERenderPipeline.BuiltIn:
-                    p_Material.SetTexture(SHADER_MAIN_TEXT, p_Texture);
-                    break;
-
-                case ERenderPipeline.URP:
-                    p_Material.SetTexture(SHADER_BASE_MAP, p_Texture);
-                    break;
-
-            }
+            p_Material.SetTexture(p_Material.HasProperty(SHADER_BASE_MAP) ? SHADER_BASE_MAP : SHADER_MAIN_TEXT, p_Texture);
         }
 
         ////////////////////////////////////////////////////////////////////////////
