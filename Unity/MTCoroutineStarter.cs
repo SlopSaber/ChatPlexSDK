@@ -1,7 +1,6 @@
 ﻿#if CP_SDK_UNITY
 using System;
 using System.Collections;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
@@ -151,7 +150,6 @@ namespace CP_SDK.Unity
             var l_Queue = m_Queues[l_QueueToHandle];
             var l_Count = l_Queue.WritePos;
             var l_I     = 0;
-            var l_Timing = Stopwatch.StartNew();
 
             do
             {
@@ -182,9 +180,6 @@ namespace CP_SDK.Unity
 
             Array.Clear(l_Queue.Data, 0, l_Count);
             l_Queue.WritePos = 0;
-
-            if (l_Timing.ElapsedMilliseconds >= 20)
-                ChatPlexSDK.Logger.Info($"Menu load trace: ChatPlex coroutine starts={l_Count} elapsed={l_Timing.ElapsedMilliseconds}ms");
         }
     }
 }
