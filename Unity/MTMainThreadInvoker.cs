@@ -194,6 +194,9 @@ namespace CP_SDK.Unity
 
             Array.Clear(l_Queue.Data, 0, l_Count);
             l_Queue.WritePos = 0;
+
+            if (m_StopWatch.ElapsedMilliseconds >= 20)
+                ChatPlexSDK.Logger.Info($"Menu load trace: ChatPlex invoker actions={l_I} elapsed={m_StopWatch.ElapsedMilliseconds}ms");
         }
 
         ////////////////////////////////////////////////////////////////////////////
