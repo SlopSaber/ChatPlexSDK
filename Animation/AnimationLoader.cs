@@ -79,7 +79,10 @@ namespace CP_SDK.Animation
         private static IEnumerator Coroutine_ProcessLoadedAnimation(AnimationInfo p_AnimationInfo, Action<Texture2D, Rect[], ushort[], int, int> p_Callback)
         {
             if (p_AnimationInfo == null)
+            {
                 p_Callback?.Invoke(null, null, null, 0, 0);
+                yield break;
+            }
 
             var l_MaxAtlasTextureSize   = GetMaxAtlasTextureSize(p_AnimationInfo);
             var l_AtlasTexture          = new Texture2D(p_AnimationInfo.Width, p_AnimationInfo.Height);
