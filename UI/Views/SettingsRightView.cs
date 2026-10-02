@@ -1,4 +1,8 @@
 ﻿using CP_SDK.XUI;
+using System.Collections;
+using System.Globalization;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
@@ -29,6 +33,9 @@ namespace CP_SDK.UI.Views
         ////////////////////////////////////////////////////////////////////////////
 
         private bool m_PreventChanges = false;
+        private int m_ExportEpoch;
+        private static readonly object s_ExportLock = new object();
+        private static Task<bool> s_ExportTask;
 
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
@@ -59,9 +66,15 @@ namespace CP_SDK.UI.Views
         /// </summary>
         protected override sealed void OnViewDeactivation()
         {
+            ++m_ExportEpoch;
             CPConfig.Instance.Save();
             ChatPlexServiceConfig.Instance.Save();
             Chat.ChatModSettings.Instance.Save();
+        }
+
+        protected override sealed void OnViewDestruction()
+        {
+            ++m_ExportEpoch;
         }
 
         ////////////////////////////////////////////////////////////////////////////
@@ -315,7 +328,78 @@ namespace CP_SDK.UI.Views
                 return;
             }
 
-            var l_Profile = @"
+            try
+            {
+                var l_Position = l_LIVCamera.transform.position;
+                var l_Rotation = l_LIVCamera.transform.eulerAngles;
+                var l_Values = new float[] {
+                    l_LIVCamera.fieldOfView,
+                    l_Position.x, l_Position.y, l_Position.z,
+                    l_Rotation.x, l_Rotation.y, l_Rotation.z
+                };
+                var l_Request = new LIVExportRequest(
+                    System.IO.Path.GetFullPath("UserData/Camera2/Cameras/BSP_LIV.json"),
+                    CultureInfo.ReadOnly((CultureInfo)CultureInfo.CurrentCulture.Clone()),
+                    l_Values);
+                var l_Task = QueueExport(l_Request);
+                CP_SDK.Unity.MTCoroutineStarter.Start(Coroutine_ExportCompleted(l_Task, m_ExportEpoch));
+            }
+            catch (System.Exception)
+            {
+                ShowMessageModal("Error!");
+            }
+        }
+
+        private static Task<bool> QueueExport(LIVExportRequest p_Request)
+        {
+            lock (s_ExportLock)
+            {
+                s_ExportTask = s_ExportTask == null
+                    ? Task.Run(p_Request.Run)
+                    : s_ExportTask.ContinueWith(_ => p_Request.Run(), CancellationToken.None,
+                        TaskContinuationOptions.None, TaskScheduler.Default);
+                return s_ExportTask;
+            }
+        }
+
+        private IEnumerator Coroutine_ExportCompleted(Task<bool> p_Task, int p_Epoch)
+        {
+            while (!p_Task.IsCompleted)
+                yield return null;
+
+            lock (s_ExportLock)
+            {
+                if (object.ReferenceEquals(s_ExportTask, p_Task))
+                    s_ExportTask = null;
+            }
+
+            if (!this || !object.ReferenceEquals(Instance, this)
+                || m_ExportEpoch != p_Epoch || !CanBeUpdated)
+                yield break;
+
+            ShowMessageModal(p_Task.GetAwaiter().GetResult()
+                ? "Camera \"BSP_LIV\" created in camera2!"
+                : "Error!");
+        }
+
+        private sealed class LIVExportRequest
+        {
+            private readonly string m_Path;
+            private readonly CultureInfo m_Culture;
+            private readonly float[] m_Values;
+
+            public LIVExportRequest(string p_Path, CultureInfo p_Culture, float[] p_Values)
+            {
+                m_Path = p_Path;
+                m_Culture = p_Culture;
+                m_Values = p_Values;
+            }
+
+            public bool Run()
+            {
+                try
+                {
+                    var l_Profile = @"
 {
   ""type"": ""Positionable"",
   ""worldCamVisibility"": ""HiddenWhilePlaying"",
@@ -335,22 +419,21 @@ namespace CP_SDK.UI.Views
     ""z"": $$ROTZ$$
   }
 }";
-            l_Profile = l_Profile.Replace("$$FOV$$", l_LIVCamera.fieldOfView.ToString().Replace(',', '.'));
-            l_Profile = l_Profile.Replace("$$POSX$$", l_LIVCamera.transform.position.x.ToString().Replace(',', '.'));
-            l_Profile = l_Profile.Replace("$$POSY$$", l_LIVCamera.transform.position.y.ToString().Replace(',', '.'));
-            l_Profile = l_Profile.Replace("$$POSZ$$", l_LIVCamera.transform.position.z.ToString().Replace(',', '.'));
-            l_Profile = l_Profile.Replace("$$ROTX$$", l_LIVCamera.transform.eulerAngles.x.ToString().Replace(',', '.'));
-            l_Profile = l_Profile.Replace("$$ROTY$$", l_LIVCamera.transform.eulerAngles.y.ToString().Replace(',', '.'));
-            l_Profile = l_Profile.Replace("$$ROTZ$$", l_LIVCamera.transform.eulerAngles.z.ToString().Replace(',', '.'));
+                    var l_Tokens = new string[] {
+                        "$$FOV$$", "$$POSX$$", "$$POSY$$", "$$POSZ$$",
+                        "$$ROTX$$", "$$ROTY$$", "$$ROTZ$$"
+                    };
+                    for (var l_I = 0; l_I < l_Tokens.Length; ++l_I)
+                        l_Profile = l_Profile.Replace(l_Tokens[l_I],
+                            m_Values[l_I].ToString(m_Culture).Replace(',', '.'));
 
-            try
-            {
-                System.IO.File.WriteAllText("UserData/Camera2/Cameras/BSP_LIV.json", l_Profile, System.Text.Encoding.UTF8);
-                ShowMessageModal("Camera \"BSP_LIV\" created in camera2!");
-            }
-            catch (System.Exception)
-            {
-                ShowMessageModal("Error!");
+                    System.IO.File.WriteAllText(m_Path, l_Profile, System.Text.Encoding.UTF8);
+                    return true;
+                }
+                catch (System.Exception)
+                {
+                    return false;
+                }
             }
         }
     }
