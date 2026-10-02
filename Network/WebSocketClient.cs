@@ -213,34 +213,79 @@ namespace CP_SDK.Network
         /// <param name="p_Message">Message to send</param>
         public async void SendMessage(string p_Message)
         {
-            if (!IsConnected)
+            ClientWebSocket l_Client;
+            CancellationTokenSource l_Lifetime;
+            string l_URI;
+            lock (m_LockObject)
             {
-                ChatPlexSDK.Logger.Debug("[CP_SDK.Network][WebSocketClient.SendMessage] WebSocket not connected, can't send message! " + m_Client.State);
-                return;
+                l_Client = m_Client;
+                l_Lifetime = m_CancellationToken;
+                l_URI = m_URI;
+                if (m_Disconnecting || !IsConnected || l_Lifetime == null)
+                {
+                    ChatPlexSDK.Logger.Debug("[CP_SDK.Network][WebSocketClient.SendMessage] WebSocket not connected, can't send message! " + l_Client?.State);
+                    return;
+                }
             }
 
             await m_SendSemaphoreSlim.WaitAsync().ConfigureAwait(false);
             try
             {
+                if (!IsCurrentSend(l_Client, l_Lifetime))
+                    return;
+
 #if DEBUG
                 /// Only log this in debug builds, since it can potentially contain sensitive auth data
                 ChatPlexSDK.Logger.Debug($"Sending {p_Message}");
 #endif
 
-                var l_Writen    = Encoding.UTF8.GetBytes(p_Message, 0, p_Message.Length, m_SendBuffer, 0);
-                var l_Segment   = new ArraySegment<byte>(m_SendBuffer, 0, l_Writen);
+                var l_EncodingTask = Task.Factory.StartNew(EncodeMessage,
+                    new SendEncodingRequest(p_Message, m_SendBuffer), CancellationToken.None,
+                    TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+                var l_Segment = await l_EncodingTask.ConfigureAwait(false);
 
-                await m_Client.SendAsync(l_Segment, System.Net.WebSockets.WebSocketMessageType.Text, true, m_CancellationToken.Token).ConfigureAwait(false);
+                if (!IsCurrentSend(l_Client, l_Lifetime))
+                    return;
+
+                await l_Client.SendAsync(l_Segment, System.Net.WebSockets.WebSocketMessageType.Text, true, l_Lifetime.Token).ConfigureAwait(false);
             }
             catch (Exception l_Exception)
             {
-                ChatPlexSDK.Logger.Error($"[CP_SDK.Network][WebSocketClient.SendMessage] An exception occurred while trying to send message to {m_URI}");
+                ChatPlexSDK.Logger.Error($"[CP_SDK.Network][WebSocketClient.SendMessage] An exception occurred while trying to send message to {l_URI}");
                 ChatPlexSDK.Logger.Error(l_Exception);
             }
             finally
             {
                 m_SendSemaphoreSlim.Release();
             }
+        }
+
+        private bool IsCurrentSend(ClientWebSocket p_Client, CancellationTokenSource p_Lifetime)
+        {
+            lock (m_LockObject)
+                return ReferenceEquals(m_Client, p_Client)
+                    && ReferenceEquals(m_CancellationToken, p_Lifetime)
+                    && !m_Disconnecting && !p_Lifetime.IsCancellationRequested;
+        }
+
+        private sealed class SendEncodingRequest
+        {
+            internal readonly string Message;
+            internal readonly byte[] Buffer;
+
+            internal SendEncodingRequest(string p_Message, byte[] p_Buffer)
+            {
+                Message = p_Message;
+                Buffer = p_Buffer;
+            }
+        }
+
+        private static ArraySegment<byte> EncodeMessage(object p_State)
+        {
+            var l_Request = (SendEncodingRequest)p_State;
+            int l_Length = Encoding.UTF8.GetBytes(l_Request.Message, 0,
+                l_Request.Message.Length, l_Request.Buffer, 0);
+            return new ArraySegment<byte>(l_Request.Buffer, 0, l_Length);
         }
 
         ////////////////////////////////////////////////////////////////////////////
