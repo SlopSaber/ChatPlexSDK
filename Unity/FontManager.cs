@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -73,7 +74,8 @@ namespace CP_SDK.Unity
             if (SystemFontLoadTask != null)
                 return SystemFontLoadTask;
 
-            var l_BaseTask = Task.Factory.StartNew(LoadSystemFonts).Unwrap();
+            var l_BaseTask = Task.Factory.StartNew(LoadSystemFonts, CancellationToken.None,
+                TaskCreationOptions.None, TaskScheduler.Default).Unwrap();
 
             SystemFontLoadTask = l_BaseTask.ContinueWith(t =>
                 {
@@ -81,12 +83,16 @@ namespace CP_SDK.Unity
                     IsInitialized = true;
                     return Task.CompletedTask;
                 },
-                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnRanToCompletion
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.OnlyOnRanToCompletion,
+                TaskScheduler.Default
             ).Unwrap();
 
             l_BaseTask.ContinueWith(
                 t => ChatPlexSDK.Logger.Error($"Font loading errored: {t.Exception}"),
-                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.NotOnRanToCompletion
+                CancellationToken.None,
+                TaskContinuationOptions.ExecuteSynchronously | TaskContinuationOptions.NotOnRanToCompletion,
+                TaskScheduler.Default
             );
             return SystemFontLoadTask;
         }
