@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using UnityEngine;
 
 namespace CP_SDK
@@ -25,6 +27,80 @@ namespace CP_SDK
     public static class ChatPlexSDK
     {
         private static List<IModuleBase> m_Modules = new List<IModuleBase>();
+
+#if CP_SDK_UNITY
+        private sealed class EmbeddedBundlePreparation
+        {
+            internal readonly string BundleName;
+            internal readonly Assembly Assembly;
+            internal readonly string ResourceName;
+            internal readonly Task<byte[]> Work;
+
+            internal EmbeddedBundlePreparation(string p_BundleName, Assembly p_Assembly)
+            {
+                BundleName = p_BundleName;
+                Assembly = p_Assembly;
+                ResourceName = p_Assembly.GetName().Name + "." + p_BundleName;
+                Work = Task.Factory.StartNew(ReadOwnedBytes, this, CancellationToken.None,
+                    TaskCreationOptions.DenyChildAttach, TaskScheduler.Default);
+            }
+
+            private static byte[] ReadOwnedBytes(object p_State)
+            {
+                var l_Request = (EmbeddedBundlePreparation)p_State;
+                try
+                {
+                    using (var l_Stream = l_Request.Assembly.GetManifestResourceStream(l_Request.ResourceName))
+                    {
+                        if (l_Stream == null)
+                            return null;
+
+                        var l_Bytes = new byte[l_Stream.Length];
+                        l_Stream.Read(l_Bytes, 0, l_Bytes.Length);
+                        return l_Bytes;
+                    }
+                }
+                catch (Exception) { return null; }
+            }
+        }
+
+        private static EmbeddedBundlePreparation m_EmbeddedBundlePreparation;
+
+        private static void PrepareEmbeddedBundle()
+        {
+            Interlocked.Exchange(ref m_EmbeddedBundlePreparation, null);
+            if (RenderPipeline != ERenderPipeline.BuiltIn)
+                return;
+
+            try
+            {
+                var l_UnityVersion = Application.unityVersion;
+                var l_UnityYear = l_UnityVersion.Substring(0, l_UnityVersion.IndexOf('.'));
+                var l_BundleName = $"CP_SDK._Resources.CP_SDK.{RenderPipeline}.u{l_UnityYear}.bundle";
+                var l_Assembly = Assembly.GetExecutingAssembly();
+                EmbeddedBundlePreparation l_Request;
+                if (ExecutionContext.IsFlowSuppressed())
+                    l_Request = new EmbeddedBundlePreparation(l_BundleName, l_Assembly);
+                else
+                {
+                    using (ExecutionContext.SuppressFlow())
+                        l_Request = new EmbeddedBundlePreparation(l_BundleName, l_Assembly);
+                }
+                Interlocked.Exchange(ref m_EmbeddedBundlePreparation, l_Request);
+            }
+            catch (Exception) { }
+        }
+
+        private static byte[] TakePreparedEmbeddedBundle(string p_BundleName)
+        {
+            var l_Request = Interlocked.Exchange(ref m_EmbeddedBundlePreparation, null);
+            if (l_Request == null || !string.Equals(l_Request.BundleName, p_BundleName, StringComparison.Ordinal)
+                || l_Request.Work.Status != TaskStatus.RanToCompletion)
+                return null;
+
+            return l_Request.Work.Result;
+        }
+#endif
 
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
@@ -63,6 +139,9 @@ namespace CP_SDK
             BasePath            = p_BasePath.Replace("\\", "/");
             NetworkUserAgent    = $"ChatPlexSDK_{p_ProductName}/{Application.version}";
             RenderPipeline      = p_RenderPipeline;
+#if CP_SDK_UNITY
+            PrepareEmbeddedBundle();
+#endif
         }
         /// <summary>
         /// When the assembly is loaded
@@ -81,6 +160,9 @@ namespace CP_SDK
         /// </summary>
         public static void OnAssemblyExit()
         {
+#if CP_SDK_UNITY
+            Interlocked.Exchange(ref m_EmbeddedBundlePreparation, null);
+#endif
             try
             {
                 Chat.Service.Release(true);
@@ -114,7 +196,8 @@ namespace CP_SDK
                 var l_BundleName    = $"CP_SDK._Resources.CP_SDK.{RenderPipeline}.u{l_UnityYear}.bundle";
                 if (Misc.Resources.ExistFromRelPath(Assembly.GetExecutingAssembly(), l_BundleName))
                 {
-                    var l_AssetBundleBytes = Misc.Resources.FromRelPath(Assembly.GetExecutingAssembly(), l_BundleName);
+                    var l_AssetBundleBytes = TakePreparedEmbeddedBundle(l_BundleName)
+                        ?? Misc.Resources.FromRelPath(Assembly.GetExecutingAssembly(), l_BundleName);
                     EmbedAssetBundle = AssetBundle.LoadFromMemory(l_AssetBundleBytes);
                 }
 
@@ -141,6 +224,7 @@ namespace CP_SDK
         /// </summary>
         public static void OnUnityExit()
         {
+            Interlocked.Exchange(ref m_EmbeddedBundlePreparation, null);
             try
             {
                 OnGenericSceneChange        = null;
