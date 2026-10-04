@@ -109,6 +109,12 @@ namespace CP_SDK.UI.Components
         /// <param name="p_Functor"></param>
         public abstract CVXList SortListItems(Func<Data.IListItem, Data.IListItem, int> p_Functor);
         /// <summary>
+        /// Apply a current reference permutation without changing scroll or selection.
+        /// Unsupported components return false without modifying the list.
+        /// </summary>
+        public virtual bool TrySetListItemOrder(List<Data.IListItem> p_OrderedItems, Func<bool> p_IsCurrent = null)
+            => false;
+        /// <summary>
         /// Remove a list item
         /// </summary>
         /// <param name="p_ListItem">Item to remove</param>

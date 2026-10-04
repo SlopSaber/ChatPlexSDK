@@ -23,6 +23,15 @@ namespace CP_SDK.UI.DefaultComponents
 
         private event Action<Data.IListItem> m_OnListItemSelected;
 
+        private sealed class ListItemIdentityComparer : IEqualityComparer<Data.IListItem>
+        {
+            internal static readonly ListItemIdentityComparer Instance = new ListItemIdentityComparer();
+
+            public bool Equals(Data.IListItem x, Data.IListItem y) => ReferenceEquals(x, y);
+            public int GetHashCode(Data.IListItem p_Item)
+                => System.Runtime.CompilerServices.RuntimeHelpers.GetHashCode(p_Item);
+        }
+
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
 
@@ -254,6 +263,36 @@ namespace CP_SDK.UI.DefaultComponents
             UpdateForCurrentScroll();
 
             return this;
+        }
+        public override bool TrySetListItemOrder(List<Data.IListItem> p_OrderedItems, Func<bool> p_IsCurrent = null)
+        {
+            if (GetType() != typeof(DefaultCVVList) || p_OrderedItems == null || p_OrderedItems.Count != m_ListItems.Count)
+                return false;
+
+            var l_Ordered = new List<Data.IListItem>(p_OrderedItems);
+            var l_Counts = new Dictionary<Data.IListItem, int>(ListItemIdentityComparer.Instance);
+            foreach (var l_Item in m_ListItems)
+            {
+                if (ReferenceEquals(l_Item, null))
+                    return false;
+                l_Counts.TryGetValue(l_Item, out var l_Count);
+                l_Counts[l_Item] = l_Count + 1;
+            }
+            foreach (var l_Item in l_Ordered)
+            {
+                if (ReferenceEquals(l_Item, null) || !l_Counts.TryGetValue(l_Item, out var l_Count) || l_Count == 0)
+                    return false;
+                l_Counts[l_Item] = l_Count - 1;
+            }
+
+            if (p_IsCurrent != null && !p_IsCurrent())
+                return false;
+
+            m_ListItems.Clear();
+            m_ListItems.AddRange(l_Ordered);
+            ClearVisibles(false);
+            UpdateForCurrentScroll();
+            return true;
         }
         /// <summary>
         /// Remove a list item
