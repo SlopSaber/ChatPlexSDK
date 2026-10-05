@@ -63,7 +63,7 @@ namespace CP_SDK.Unity.OpenType
                 p_Encoding = Encoding.Default;
 
             var l_Start     = p_Stream.Position;
-            var l_Reader    = new BinaryReader(p_Stream, p_Encoding, true);
+            using var l_Reader = new BinaryReader(p_Stream, p_Encoding, true);
             var l_Tag       = BitConverter.ToUInt32(FromBigEndian(l_Reader.ReadBytes(4)), 0);
 
             p_Stream.Position = l_Start;

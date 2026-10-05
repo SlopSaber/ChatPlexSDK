@@ -21,6 +21,7 @@ namespace CP_SDK.Unity
         {
             internal string       Path;
             internal OpenTypeFont Info;
+            internal IReadOnlyList<string> OSFallbacks;
 
             internal FontInfo(string p_Path, OpenTypeFont p_OpenTypeFont)
             {
@@ -263,6 +264,27 @@ namespace CP_SDK.Unity
 
                 await Task.Yield();
             }
+
+            PrepareDefaultFontFallbacks(MainFontName);
+            if (ChatFontName != MainFontName)
+                PrepareDefaultFontFallbacks(ChatFontName);
+        }
+
+        private static void PrepareDefaultFontFallbacks(string p_Family)
+        {
+            try
+            {
+                if (FindFontInfoByFamily(p_Family, out var l_FontInfo))
+                {
+                    var l_Fallbacks = GetOSFontFallbackFullNameList(l_FontInfo.Info.FullName).ToArray();
+                    lock (m_LockObject)
+                        l_FontInfo.OSFallbacks = l_Fallbacks;
+                }
+            }
+            catch (Exception)
+            {
+                // A failed prefetch keeps the original synchronous lookup and error path.
+            }
         }
 
         ////////////////////////////////////////////////////////////////////////////
@@ -275,8 +297,8 @@ namespace CP_SDK.Unity
         /// <returns></returns>
         private static FontInfo AddFontFileToCache(string p_Path)
         {
-            var l_FileStream    = new FileStream(p_Path, FileMode.Open, FileAccess.Read);
-            var l_Reader        = OpenTypeReader.For(l_FileStream);
+            using var l_FileStream = new FileStream(p_Path, FileMode.Open, FileAccess.Read);
+            using var l_Reader = OpenTypeReader.For(l_FileStream);
 
             if (l_Reader is OpenTypeCollectionReader l_CollectionReader)
             {
@@ -339,6 +361,12 @@ namespace CP_SDK.Unity
         private static bool TryGetFontInfoByFamily(string p_Family, out FontInfo p_FontInfo, string p_SubFamily = null, bool p_FallbackIfNoSubfamily = false)
         {
             ThrowIfNotInitialized();
+
+            return FindFontInfoByFamily(p_Family, out p_FontInfo, p_SubFamily, p_FallbackIfNoSubfamily);
+        }
+
+        private static bool FindFontInfoByFamily(string p_Family, out FontInfo p_FontInfo, string p_SubFamily = null, bool p_FallbackIfNoSubfamily = false)
+        {
 
             p_FontInfo = null;
 
@@ -439,7 +467,7 @@ namespace CP_SDK.Unity
 
             if (p_SetupOsFallbacks)
             {
-                var l_Fallbacks = GetOSFontFallbackFullNameList(p_FontInfo.Info.FullName);
+                var l_Fallbacks = p_FontInfo.OSFallbacks ?? GetOSFontFallbackFullNameList(p_FontInfo.Info.FullName);
                 for (var l_I = 0; l_I < l_Fallbacks.Count; ++l_I)
                 {
                     if (!TryGetTMPFontAssetByFullName(l_Fallbacks[l_I], out var l_FallbackFont, false))
@@ -498,7 +526,7 @@ namespace CP_SDK.Unity
             }
             else
             { 
-                var systemLinkKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink");
+                using var systemLinkKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\FontLink\SystemLink");
                 if (systemLinkKey == null)
                     return fallbackFontsFilename;
 
