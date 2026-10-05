@@ -164,10 +164,16 @@ namespace CP_SDK.UI
             }
             finally
             {
-                (p_Loading as IDisposable)?.Dispose();
-                if (ReferenceEquals(m_LoadingAnimationRequest, p_Request))
-                    m_LoadingAnimationRequest = null;
-                p_Request.Dispose();
+                try
+                {
+                    (p_Loading as IDisposable)?.Dispose();
+                }
+                finally
+                {
+                    if (ReferenceEquals(m_LoadingAnimationRequest, p_Request))
+                        m_LoadingAnimationRequest = null;
+                    p_Request.Dispose();
+                }
             }
         }
 
