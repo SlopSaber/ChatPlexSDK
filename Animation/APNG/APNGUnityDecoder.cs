@@ -15,6 +15,9 @@ namespace CP_SDK.Animation.APNG
         public static void Process(byte[] p_Raw, Action<AnimationInfo> p_Callback)
             => ProcessingThread(p_Raw, p_Callback).ConfigureAwait(false);
 
+        internal static Task ProcessRetained(byte[] p_Raw, Action<AnimationInfo> p_Callback)
+            => Task.Run(() => ProcessingThread(p_Raw, p_Callback));
+
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
 

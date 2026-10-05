@@ -19,6 +19,9 @@ namespace CP_SDK.Animation.WEBP
         public static void Process(byte[] p_Raw, Action<AnimationInfo> p_Callback, Action<UnityEngine.Sprite> p_StaticCallback)
             => ProcessingThread(p_Raw, p_Callback, p_StaticCallback).ConfigureAwait(false);
 
+        internal static Task ProcessRetained(byte[] p_Raw, Action<AnimationInfo> p_Callback, Action<UnityEngine.Color32[], int, int> p_StaticPixels)
+            => Task.Run(() => ProcessingThread(p_Raw, p_Callback, null, p_StaticPixels));
+
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +33,8 @@ namespace CP_SDK.Animation.WEBP
         /// <param name="p_StaticCallback">On static frame completion callback</param>
         private static async Task ProcessingThread( byte[]                      p_Raw,
                                                     Action<AnimationInfo>       p_Callback,
-                                                    Action<UnityEngine.Sprite>  p_StaticCallback)
+                                                    Action<UnityEngine.Sprite>  p_StaticCallback,
+                                                    Action<UnityEngine.Color32[], int, int> p_StaticPixels = null)
         {
             /// RUN ON RANDOM THREAD
 
@@ -80,6 +84,12 @@ namespace CP_SDK.Animation.WEBP
 
                     var l_Width     = l_Bitmap.Width;
                     var l_Height    = l_Bitmap.Height;
+
+                    if (p_StaticPixels != null)
+                    {
+                        p_StaticPixels(l_Colors, l_Width, l_Height);
+                        return;
+                    }
 
                     Unity.MTMainThreadInvoker.Enqueue(() =>
                     {

@@ -176,14 +176,17 @@ namespace CP_SDK.Unity.Components
                     }
 
                     var l_AnimationCurve        = new AnimationCurve();
-                    var l_TimeAccumulator       = 0.0f;
-                    var l_SingleFramePercentage = 1.0f / (float)l_SpriteCount;
-                    for (int l_FrameI = 0; l_FrameI < l_SpriteCount; ++l_FrameI)
+                    if (!p_TargetImage.AnimControllerData.TryCopyParticleCurve(l_AnimationCurve, l_SpriteCount, l_TimeForEmote))
                     {
-                        l_AnimationCurve.AddKey(l_TimeAccumulator / l_TimeForEmote, ((float)l_FrameI) * l_SingleFramePercentage);
-                        l_TimeAccumulator += p_TargetImage.AnimControllerData.Delays[l_FrameI];
+                        var l_TimeAccumulator       = 0.0f;
+                        var l_SingleFramePercentage = 1.0f / (float)l_SpriteCount;
+                        for (int l_FrameI = 0; l_FrameI < l_SpriteCount; ++l_FrameI)
+                        {
+                            l_AnimationCurve.AddKey(l_TimeAccumulator / l_TimeForEmote, ((float)l_FrameI) * l_SingleFramePercentage);
+                            l_TimeAccumulator += p_TargetImage.AnimControllerData.Delays[l_FrameI];
+                        }
+                        l_AnimationCurve.AddKey(1.0f, 1.0f);
                     }
-                    l_AnimationCurve.AddKey(1.0f, 1.0f);
 
                     l_TextureSheetAnimation.enabled         = true;
                     l_TextureSheetAnimation.frameOverTime   = new ParticleSystem.MinMaxCurve(1f, l_AnimationCurve);

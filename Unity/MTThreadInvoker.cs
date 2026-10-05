@@ -2,6 +2,7 @@
 using System;
 using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace CP_SDK.Unity
 {
@@ -94,6 +95,45 @@ namespace CP_SDK.Unity
 
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
+
+        /// <summary>Serialize background-safe work; rejection faults the task, and successful completion follows the delegate return.</summary>
+        public static Task<T> EnqueueRetained<T>(Func<T> p_Work)
+        {
+            if (p_Work == null)
+                throw new ArgumentNullException(nameof(p_Work));
+
+            var l_Completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!TryEnqueueOnThread(() =>
+            {
+                try { l_Completion.TrySetResult(p_Work()); }
+                catch (Exception l_Exception) { l_Completion.TrySetException(l_Exception); }
+            }))
+                l_Completion.TrySetException(new InvalidOperationException("Worker is unavailable or full."));
+            l_Completion.Task.ContinueWith(p_Task => p_Task.Exception.Handle(p_Error => true),
+                CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
+                TaskScheduler.Default);
+            return l_Completion.Task;
+        }
+
+        internal static bool TryEnqueueOnThread(Action p_Action)
+        {
+            if (p_Action == null)
+                return false;
+
+            lock (m_Queues)
+            {
+                if (!m_RunCondition)
+                    return false;
+
+                var l_Queue = m_Queues[m_FrontQueue];
+                if (l_Queue.WritePos >= MAX_QUEUE_SIZE)
+                    return false;
+
+                l_Queue.Data[l_Queue.WritePos++] = p_Action;
+                m_Queued = true;
+                return true;
+            }
+        }
 
         /// <summary>
         /// Enqueue a new action

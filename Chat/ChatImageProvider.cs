@@ -64,6 +64,9 @@ namespace CP_SDK.Chat
 
             return m_CachedImageInfoProxy;
         } }
+        public static KeyValuePair<string, Unity.EnhancedImage>[] GetCachedEmoteSnapshot()
+            => m_CachedEmoteInfo.ToArray();
+
         /// <summary>
         /// Cached emotes info
         /// </summary>

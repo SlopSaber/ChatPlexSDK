@@ -70,6 +70,9 @@ namespace CP_SDK.Animation
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
 
+        internal static IEnumerator CreateOwnedPackingCoroutine(AnimationInfo p_Info, Action<Texture2D, Rect[], ushort[], int, int> p_Callback)
+            => Coroutine_ProcessLoadedAnimation(p_Info, p_Callback);
+
         /// <summary>
         /// Process loaded animation
         /// </summary>

@@ -9,6 +9,20 @@ namespace CP_SDK.Animation
     /// </summary>
     public class AnimationControllerInstance
     {
+        private ParticleAnimationPlan m_ParticlePlan;
+
+        internal void SetParticlePlan(ParticleAnimationPlan p_Plan)
+        {
+            if (p_Plan != null && Frames != null && p_Plan.Matches(Delays, Frames.Length))
+                m_ParticlePlan = p_Plan;
+        }
+
+        internal bool HasParticlePlan()
+            => m_ParticlePlan != null && Frames != null && m_ParticlePlan.Matches(Delays, Frames.Length);
+
+        internal bool TryCopyParticleCurve(AnimationCurve p_Curve, int p_FrameCount, float p_Duration)
+            => m_ParticlePlan != null && m_ParticlePlan.TryCopyTo(p_Curve, Delays, p_FrameCount, p_Duration);
+
         /// <summary>
         /// Is frame delays consistent
         /// </summary>

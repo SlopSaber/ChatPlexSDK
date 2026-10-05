@@ -7,7 +7,7 @@ namespace CP_SDK.Unity
     /// <summary>
     /// Enhanced image info
     /// </summary>
-    public class EnhancedImage
+    public partial class EnhancedImage
     {
         /// <summary>
         /// Animated gif byte pattern for fast lookup
