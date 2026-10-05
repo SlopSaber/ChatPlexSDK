@@ -266,7 +266,10 @@ namespace CP_SDK.Unity
                 {
                     l_Completion.TrySetResult(l_Result);
                 }
-            }))
+            }, () => l_Completion.TrySetResult(new PreparedFileImage
+            {
+                Error = new InvalidOperationException("Image preparation worker stopped before queued work could start.")
+            })))
                 l_Completion.TrySetResult(new PreparedFileImage { Error = new InvalidOperationException("Image preparation worker is unavailable or full.") });
 
             return l_Completion.Task;

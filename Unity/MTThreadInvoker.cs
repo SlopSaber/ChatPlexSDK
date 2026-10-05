@@ -22,11 +22,19 @@ namespace CP_SDK.Unity
         /// <summary>
         /// Queue class
         /// </summary>
+        private struct QueuedAction
+        {
+            public Action Invoke;
+            public Action Reject;
+        }
+
         private class Queue
         {
-            public Action[] Data = new Action[MAX_QUEUE_SIZE];
+            public QueuedAction[] Data = new QueuedAction[MAX_QUEUE_SIZE];
             public int WritePos = 0;
         }
+
+        private static readonly object m_QueueLock = new object();
 
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
@@ -34,7 +42,7 @@ namespace CP_SDK.Unity
         /// <summary>
         /// Run condition
         /// </summary>
-        private static bool m_RunCondition = false;
+        private static volatile bool m_RunCondition = false;
         /// <summary>
         /// Update thread
         /// </summary>
@@ -64,33 +72,61 @@ namespace CP_SDK.Unity
         /// </summary>
         internal static void Initialize()
         {
-            if (m_UpdateThread != null)
-                return;
+            lock (m_QueueLock)
+            {
+                if (m_UpdateThread != null)
+                    return;
 
-            m_RunCondition = true;
+                m_RunCondition = true;
 
-            m_UpdateThread = new Thread(Update);
-            m_UpdateThread.IsBackground = true;
-            m_UpdateThread.Start();
+                m_UpdateThread = new Thread(Update);
+                m_UpdateThread.IsBackground = true;
+                try { m_UpdateThread.Start(); }
+                catch
+                {
+                    m_RunCondition = false;
+                    m_UpdateThread = null;
+                    throw;
+                }
+            }
         }
         /// <summary>
         /// Stop
         /// </summary>
         internal static void Destroy()
         {
-            if (m_UpdateThread == null)
-                return;
-
-            m_RunCondition = false;
-            m_UpdateThread.Join();
-            m_UpdateThread = null;
-
-            /// Clear queues
-            m_Queues = new Queue[2]
+            Thread l_Thread;
+            QueuedAction[] l_Rejected;
+            lock (m_QueueLock)
             {
-                new Queue(),
-                new Queue()
-            };
+                l_Thread = m_UpdateThread;
+                if (l_Thread == null)
+                    return;
+
+                m_RunCondition = false;
+                var l_Queue = m_Queues[m_FrontQueue];
+                l_Rejected = new QueuedAction[l_Queue.WritePos];
+                Array.Copy(l_Queue.Data, l_Rejected, l_Queue.WritePos);
+                Array.Clear(l_Queue.Data, 0, l_Queue.WritePos);
+                l_Queue.WritePos = 0;
+                m_Queued = false;
+            }
+
+            // In-flight work finishes on its worker; never-started work receives only terminal notification.
+            foreach (var l_Action in l_Rejected)
+                l_Action.Reject?.Invoke();
+
+            l_Thread.Join();
+            lock (m_QueueLock)
+            {
+                if (m_UpdateThread != l_Thread)
+                    return;
+
+                m_UpdateThread = null;
+                m_Queues = new Queue[2] { new Queue(), new Queue() };
+                m_FrontQueue = 0;
+                m_Queued = false;
+            }
         }
 
         ////////////////////////////////////////////////////////////////////////////
@@ -107,7 +143,7 @@ namespace CP_SDK.Unity
             {
                 try { l_Completion.TrySetResult(p_Work()); }
                 catch (Exception l_Exception) { l_Completion.TrySetException(l_Exception); }
-            }))
+            }, () => l_Completion.TrySetException(new InvalidOperationException("Worker stopped before queued work could start."))))
                 l_Completion.TrySetException(new InvalidOperationException("Worker is unavailable or full."));
             l_Completion.Task.ContinueWith(p_Task => p_Task.Exception.Handle(p_Error => true),
                 CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
@@ -116,11 +152,14 @@ namespace CP_SDK.Unity
         }
 
         internal static bool TryEnqueueOnThread(Action p_Action)
+            => TryEnqueueOnThread(p_Action, null);
+
+        internal static bool TryEnqueueOnThread(Action p_Action, Action p_OnDiscard)
         {
             if (p_Action == null)
                 return false;
 
-            lock (m_Queues)
+            lock (m_QueueLock)
             {
                 if (!m_RunCondition)
                     return false;
@@ -129,7 +168,7 @@ namespace CP_SDK.Unity
                 if (l_Queue.WritePos >= MAX_QUEUE_SIZE)
                     return false;
 
-                l_Queue.Data[l_Queue.WritePos++] = p_Action;
+                l_Queue.Data[l_Queue.WritePos++] = new QueuedAction { Invoke = p_Action, Reject = p_OnDiscard };
                 m_Queued = true;
                 return true;
             }
@@ -145,7 +184,7 @@ namespace CP_SDK.Unity
             if (p_Action == null)
                 return;
 
-            lock (m_Queues)
+            lock (m_QueueLock)
             {
                 var l_Queue = m_Queues[m_FrontQueue];
                 if (l_Queue.WritePos >= MAX_QUEUE_SIZE)
@@ -154,7 +193,7 @@ namespace CP_SDK.Unity
                     return;
                 }
 
-                l_Queue.Data[l_Queue.WritePos++] = p_Action;
+                l_Queue.Data[l_Queue.WritePos++] = new QueuedAction { Invoke = p_Action };
                 m_Queued = true;
             }
         }
@@ -175,16 +214,17 @@ namespace CP_SDK.Unity
                     continue;
                 }
 
-                var l_QueueToHandle     = m_FrontQueue;
-                var l_NextFrontQueue    = (m_FrontQueue + 1) & 1;
-
-                lock (m_Queues)
+                Queue l_Queue;
+                lock (m_QueueLock)
                 {
-                    m_FrontQueue    = l_NextFrontQueue;
+                    if (!m_RunCondition)
+                        break;
+
+                    l_Queue         = m_Queues[m_FrontQueue];
+                    m_FrontQueue    = (m_FrontQueue + 1) & 1;
                     m_Queued        = false;
                 }
 
-                var l_Queue = m_Queues[l_QueueToHandle];
                 var l_Count = l_Queue.WritePos;
                 var l_I     = 0;
 
@@ -192,7 +232,7 @@ namespace CP_SDK.Unity
                 {
                     try
                     {
-                        l_Queue.Data[l_I]();
+                        l_Queue.Data[l_I].Invoke();
                     }
                     catch (Exception l_Exception)
                     {
@@ -208,7 +248,7 @@ namespace CP_SDK.Unity
                     var l_ToCopy        = l_Count - l_I;
                     var l_FrontQueue    = m_Queues[m_FrontQueue];
 
-                    lock (m_Queues)
+                    lock (m_QueueLock)
                     {
                         Array.Copy(l_Queue.Data, l_I, l_FrontQueue.Data, l_FrontQueue.WritePos, l_ToCopy);
                         l_FrontQueue.WritePos += l_ToCopy;
