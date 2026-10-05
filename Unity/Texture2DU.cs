@@ -77,6 +77,10 @@ namespace CP_SDK.Unity
                                 }
                                 catch (System.Exception l_Exception)
                                 {
+                                    if (l_Texture != null)
+                                        UnityEngine.Object.Destroy(l_Texture);
+                                    l_Texture = null;
+
                                     ChatPlexSDK.Logger.Error("[CP_SDK.Unity][Texture2D.CreateFromRawEx] Error2:");
                                     ChatPlexSDK.Logger.Error(l_Exception);
                                 }

@@ -78,42 +78,112 @@ namespace CP_SDK.Animation
         /// <returns></returns>
         private static IEnumerator Coroutine_ProcessLoadedAnimation(AnimationInfo p_AnimationInfo, Action<Texture2D, Rect[], ushort[], int, int> p_Callback)
         {
-            if (p_AnimationInfo == null)
+            Texture2D l_AtlasTexture = null;
+            Texture2D[] l_SubTextures = null;
+            bool l_Transferred = false;
+
+            try
             {
-                p_Callback?.Invoke(null, null, null, 0, 0);
-                yield break;
-            }
-
-            var l_MaxAtlasTextureSize   = GetMaxAtlasTextureSize(p_AnimationInfo);
-            var l_AtlasTexture          = new Texture2D(p_AnimationInfo.Width, p_AnimationInfo.Height);
-            var l_SubTextures           = new Texture2D[p_AnimationInfo.Frames.Length];
-
-            for (var l_FrameI = 0; l_FrameI < p_AnimationInfo.Frames.Length; ++l_FrameI)
-            {
-                var l_FrameTexture = new Texture2D(p_AnimationInfo.Width, p_AnimationInfo.Height, TextureFormat.RGBA32, false);
-                l_FrameTexture.wrapMode = TextureWrapMode.Clamp;
-
-                try
+                if (p_AnimationInfo == null || p_AnimationInfo.Frames == null || p_AnimationInfo.Frames.Length == 0)
                 {
-                    l_FrameTexture.SetPixels32(p_AnimationInfo.Frames[l_FrameI]);
-                    l_FrameTexture.Apply(l_FrameI == 0);
-                }
-                catch
-                {
+                    p_Callback?.Invoke(null, null, null, 0, 0);
                     yield break;
                 }
 
-                l_SubTextures[l_FrameI] = l_FrameTexture;
+                int l_MaxAtlasTextureSize = 0;
+                bool l_Failed = false;
+                try
+                {
+                    l_MaxAtlasTextureSize = GetMaxAtlasTextureSize(p_AnimationInfo);
+                    l_AtlasTexture = new Texture2D(p_AnimationInfo.Width, p_AnimationInfo.Height);
+                    l_SubTextures = new Texture2D[p_AnimationInfo.Frames.Length];
+                }
+                catch (System.Exception l_Exception)
+                {
+                    l_Failed = true;
+                    ChatPlexSDK.Logger.Error("[CP_SDK.Animation][AnimationLoader] Failed to create animation textures:");
+                    ChatPlexSDK.Logger.Error(l_Exception);
+                }
 
-                yield return m_EndOfFrameWaiter;
+                if (!l_Failed)
+                {
+                    for (var l_FrameI = 0; l_FrameI < p_AnimationInfo.Frames.Length; ++l_FrameI)
+                    {
+                        if (l_FrameI >= l_SubTextures.Length)
+                        {
+                            l_Failed = true;
+                            break;
+                        }
+
+                        try
+                        {
+                            var l_FrameTexture = new Texture2D(p_AnimationInfo.Width, p_AnimationInfo.Height, TextureFormat.RGBA32, false);
+                            l_SubTextures[l_FrameI] = l_FrameTexture;
+                            l_FrameTexture.wrapMode = TextureWrapMode.Clamp;
+                            l_FrameTexture.SetPixels32(p_AnimationInfo.Frames[l_FrameI]);
+                            l_FrameTexture.Apply(l_FrameI == 0);
+                        }
+                        catch (System.Exception)
+                        {
+                            l_Failed = true;
+                        }
+
+                        if (l_Failed)
+                            break;
+
+                        yield return m_EndOfFrameWaiter;
+                    }
+                }
+
+                Rect[] l_UVs = null;
+                if (!l_Failed)
+                {
+                    try
+                    {
+                        l_UVs = l_AtlasTexture.PackTextures(l_SubTextures, 2, l_MaxAtlasTextureSize, true);
+                    }
+                    catch (System.Exception l_Exception)
+                    {
+                        l_Failed = true;
+                        ChatPlexSDK.Logger.Error("[CP_SDK.Animation][AnimationLoader] Failed to pack animation textures:");
+                        ChatPlexSDK.Logger.Error(l_Exception);
+                    }
+                }
+
+                ReleaseSubTextures(l_SubTextures);
+                if (l_Failed)
+                {
+                    if (l_AtlasTexture != null)
+                        GameObject.Destroy(l_AtlasTexture);
+                    l_AtlasTexture = null;
+                    p_Callback?.Invoke(null, null, null, 0, 0);
+                    yield break;
+                }
+
+                // A consumer can publish the atlas before its callback throws.
+                l_Transferred = p_Callback != null;
+                p_Callback?.Invoke(l_AtlasTexture, l_UVs, p_AnimationInfo.Delays, p_AnimationInfo.Width, p_AnimationInfo.Height);
             }
+            finally
+            {
+                ReleaseSubTextures(l_SubTextures);
+                if (!l_Transferred && l_AtlasTexture != null)
+                    GameObject.Destroy(l_AtlasTexture);
+            }
+        }
 
-            var l_UVs = l_AtlasTexture.PackTextures(l_SubTextures, 2, l_MaxAtlasTextureSize, true);
+        private static void ReleaseSubTextures(Texture2D[] p_Textures)
+        {
+            if (p_Textures == null)
+                return;
 
-            for (int l_I = 0; l_I < l_SubTextures.Length; ++l_I)
-                GameObject.Destroy(l_SubTextures[l_I]);
-
-            p_Callback?.Invoke(l_AtlasTexture, l_UVs, p_AnimationInfo.Delays, p_AnimationInfo.Width, p_AnimationInfo.Height);
+            for (int l_I = 0; l_I < p_Textures.Length; ++l_I)
+            {
+                var l_Texture = p_Textures[l_I];
+                p_Textures[l_I] = null;
+                if (l_Texture != null)
+                    GameObject.Destroy(l_Texture);
+            }
         }
 
         ////////////////////////////////////////////////////////////////////////////
