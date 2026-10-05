@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
@@ -24,7 +25,41 @@ namespace CP_SDK.Unity
         public static IEnumerator FromFileRetained(string p_FileName, string p_ID,
             Action<EnhancedImage> p_Callback, CancellationToken p_Cancellation)
         {
-            var l_Preparation = PrepareOwnedFile(p_FileName, p_Cancellation);
+            var l_Loading = FromPreparedRetained(PrepareOwnedFile(p_FileName, p_Cancellation),
+                p_FileName, p_ID, p_Callback, p_Cancellation, true);
+            try
+            {
+                while (l_Loading.MoveNext())
+                    yield return l_Loading.Current;
+            }
+            finally
+            {
+                (l_Loading as IDisposable)?.Dispose();
+            }
+        }
+
+        internal static IEnumerator FromResourceRetained(Assembly p_Assembly, string p_Resource,
+            string p_ID, Action<EnhancedImage> p_Callback, CancellationToken p_Cancellation)
+        {
+            // Keep resource-read completion and failures ahead of native startup.
+            var l_Bytes = Task.Run(() =>
+            {
+                using (var l_Stream = p_Assembly.GetManifestResourceStream(p_Assembly.GetName().Name + "." + p_Resource))
+                {
+                    var l_Data = new byte[l_Stream.Length];
+                    l_Stream.Read(l_Data, 0, (int)l_Stream.Length);
+                    return l_Data;
+                }
+            }).GetAwaiter().GetResult();
+            return FromPreparedRetained(PrepareOwnedResource(l_Bytes, p_Cancellation),
+                p_Resource, p_ID, p_Callback, p_Cancellation, false);
+        }
+
+        private static IEnumerator FromPreparedRetained(Task<PreparedFileImage> p_Preparation,
+            string p_Name, string p_ID, Action<EnhancedImage> p_Callback,
+            CancellationToken p_Cancellation, bool p_UpdateParticlePlan)
+        {
+            var l_Preparation = p_Preparation;
             while (!l_Preparation.IsCompleted && !p_Cancellation.IsCancellationRequested)
                 yield return null;
 
@@ -34,7 +69,7 @@ namespace CP_SDK.Unity
             var l_Prepared = l_Preparation.Result;
             if (l_Prepared.Error != null)
             {
-                ChatPlexSDK.Logger.Error("[CP_SDK.Unity][EnhancedImage.FromFileRetained] Failed to prepare image " + p_FileName);
+                ChatPlexSDK.Logger.Error("[CP_SDK.Unity][EnhancedImage.FromFileRetained] Failed to prepare image " + p_Name);
                 ChatPlexSDK.Logger.Error(l_Prepared.Error);
                 p_Callback?.Invoke(null);
                 yield break;
@@ -55,7 +90,8 @@ namespace CP_SDK.Unity
                         }
                         OnRawAnimatedCallback(p_ID, p_Texture, p_UVs, p_Delays, p_Width, p_Height, p_Image =>
                         {
-                            p_Image?.AnimControllerData?.SetParticlePlan(l_Prepared.ParticlePlan);
+                            if (p_UpdateParticlePlan)
+                                p_Image?.AnimControllerData?.SetParticlePlan(l_Prepared.ParticlePlan);
                             p_Callback?.Invoke(p_Image);
                         });
                     });
@@ -107,7 +143,7 @@ namespace CP_SDK.Unity
             }
             if (l_Error != null)
             {
-                ChatPlexSDK.Logger.Error("[CP_SDK.Unity][EnhancedImage.FromFileRetained] Failed to create image " + p_FileName);
+                ChatPlexSDK.Logger.Error("[CP_SDK.Unity][EnhancedImage.FromFileRetained] Failed to create image " + p_Name);
                 ChatPlexSDK.Logger.Error(l_Error);
             }
             p_Callback?.Invoke(l_Image);
@@ -142,6 +178,28 @@ namespace CP_SDK.Unity
 
         private static Task<Animation.ParticleAnimationPlan> PrepareOwnedParticlePlan(ushort[] p_Delays, int p_Count)
             => MTThreadInvoker.EnqueueRetained(() => Animation.ParticleAnimationPlan.Create(p_Delays, p_Count));
+
+        private static async Task<PreparedFileImage> PrepareOwnedResource(byte[] p_Bytes, CancellationToken p_Cancellation)
+        {
+            var l_Result = new PreparedFileImage();
+            try
+            {
+                if (!p_Cancellation.IsCancellationRequested)
+                    await Animation.WEBP.WEBPDecoder.ProcessRetained(p_Bytes,
+                        p_Info => l_Result.Animation = p_Info,
+                        (p_Colors, p_Width, p_Height) =>
+                        {
+                            l_Result.Colors = p_Colors;
+                            l_Result.Width = p_Width;
+                            l_Result.Height = p_Height;
+                        }).ConfigureAwait(false);
+            }
+            catch (Exception l_Exception)
+            {
+                l_Result.Error = l_Exception;
+            }
+            return l_Result;
+        }
 
         private static Task<PreparedFileImage> PrepareOwnedFile(string p_FileName, CancellationToken p_Cancellation)
         {

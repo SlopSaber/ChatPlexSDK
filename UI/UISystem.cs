@@ -1,6 +1,8 @@
 ﻿using CP_SDK.Unity.Extensions;
 using System;
+using System.Collections;
 using System.Reflection;
+using System.Threading;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,6 +15,7 @@ namespace CP_SDK.UI
     public static class UISystem
     {
         private static Unity.EnhancedImage m_LoadingAnimation = null;
+        private static CancellationTokenSource m_LoadingAnimationRequest;
 
         private static Sprite m_UIButtonSprite              = null;
         private static Sprite m_UIColorPickerFBGSprite      = null;
@@ -97,15 +100,27 @@ namespace CP_SDK.UI
 
         internal static void Init()
         {
-            var l_Bytes = Misc.Resources.FromRelPath(Assembly.GetExecutingAssembly(), "CP_SDK._Resources.ChatPlexLogoLoading.webp");
-            Unity.EnhancedImage.FromRawAnimated(
-                "CP_SDK._Resources.ChatPlexLogoLoading.webp",
-                Animation.EAnimationType.WEBP,
-                l_Bytes,
-                (x) => {
-                    m_LoadingAnimation = x;
-                }
-            );
+            m_LoadingAnimationRequest?.Cancel();
+            var l_Request = new CancellationTokenSource();
+            m_LoadingAnimationRequest = l_Request;
+            try
+            {
+                var l_Loading = Unity.EnhancedImage.FromResourceRetained(Assembly.GetExecutingAssembly(),
+                    "CP_SDK._Resources.ChatPlexLogoLoading.webp", "CP_SDK._Resources.ChatPlexLogoLoading.webp",
+                    p_Image =>
+                    {
+                        if (ReferenceEquals(m_LoadingAnimationRequest, l_Request) && !l_Request.IsCancellationRequested)
+                            m_LoadingAnimation = p_Image;
+                    }, l_Request.Token);
+                Unity.MTCoroutineStarter.EnqueueFromThread(Coroutine_LoadingAnimation(l_Loading, l_Request));
+            }
+            catch
+            {
+                if (ReferenceEquals(m_LoadingAnimationRequest, l_Request))
+                    m_LoadingAnimationRequest = null;
+                l_Request.Dispose();
+                throw;
+            }
 
             if (CPConfig.Instance.EventSpecials && DateTime.Now.Month == 10)
             {
@@ -128,6 +143,9 @@ namespace CP_SDK.UI
         }
         internal static void Destroy()
         {
+            var l_Request = m_LoadingAnimationRequest;
+            m_LoadingAnimationRequest = null;
+            l_Request?.Cancel();
             ModMenu.Destroy();
             ScreenSystem.Destroy();
 
@@ -136,6 +154,22 @@ namespace CP_SDK.UI
 
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
+
+        private static IEnumerator Coroutine_LoadingAnimation(IEnumerator p_Loading, CancellationTokenSource p_Request)
+        {
+            try
+            {
+                while (!p_Request.IsCancellationRequested && p_Loading.MoveNext())
+                    yield return p_Loading.Current;
+            }
+            finally
+            {
+                (p_Loading as IDisposable)?.Dispose();
+                if (ReferenceEquals(m_LoadingAnimationRequest, p_Request))
+                    m_LoadingAnimationRequest = null;
+                p_Request.Dispose();
+            }
+        }
 
         public static Unity.EnhancedImage GetLoadingAnimation() => m_LoadingAnimation;
 
