@@ -188,11 +188,15 @@ namespace CP_SDK
 
                 foreach (var l_Assembly in AppDomain.CurrentDomain.GetAssemblies())
                 {
+                    if (l_Assembly.IsDynamic) continue;
                     try
                     {
-                        foreach (var l_Type in l_Assembly.GetTypes())
+                        Type[] l_Types;
+                        try { l_Types = l_Assembly.GetTypes(); }
+                        catch (System.Reflection.ReflectionTypeLoadException l_Error) { l_Types = l_Error.Types; }
+                        foreach (var l_Type in l_Types)
                         {
-                            if (!l_Type.IsClass || l_Type.ContainsGenericParameters)
+                            if (l_Type == null || !l_Type.IsClass || l_Type.IsAbstract || l_Type.ContainsGenericParameters)
                                 continue;
 
                             if (!typeof(IModuleBase).IsAssignableFrom(l_Type))
