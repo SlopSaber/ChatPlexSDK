@@ -24,6 +24,12 @@ namespace CP_SDK
     /// </summary>
     public static class ChatPlexSDK
     {
+#if BSIPA_MODS
+        internal const string NativeLibraryDirectory = "Mods/Libraries/Native";
+#else
+        internal const string NativeLibraryDirectory = "Libs/Natives";
+#endif
+
         private static List<IModuleBase> m_Modules = new List<IModuleBase>();
 
         ////////////////////////////////////////////////////////////////////////////
@@ -344,22 +350,22 @@ namespace CP_SDK
             try
             {
                 /// Installing WEBP codec
-                if (!Directory.Exists("Libs/Natives/"))
-                    Directory.CreateDirectory("Libs/Natives/");
+                if (!Directory.Exists(NativeLibraryDirectory))
+                    Directory.CreateDirectory(NativeLibraryDirectory);
 
                 var l_LibWEBP       = Misc.Resources.FromRelPath(Assembly.GetExecutingAssembly(), "CP_SDK._Resources.libwebp.dll");
                 var l_LibWEBPDemux  = Misc.Resources.FromRelPath(Assembly.GetExecutingAssembly(), "CP_SDK._Resources.libwebpdemux.dll");
 
-                if (!File.Exists("Libs/Natives/libwebp.dll")
-                    || Security.SHA1.GetHashString(File.ReadAllBytes("Libs/Natives/libwebp.dll")) != Security.SHA1.GetHashString(l_LibWEBP))
+                if (!File.Exists(Path.Combine(NativeLibraryDirectory, "libwebp.dll"))
+                    || Security.SHA1.GetHashString(File.ReadAllBytes(Path.Combine(NativeLibraryDirectory, "libwebp.dll"))) != Security.SHA1.GetHashString(l_LibWEBP))
                 {
-                    File.WriteAllBytes("Libs/Natives/libwebp.dll", l_LibWEBP);
+                    File.WriteAllBytes(Path.Combine(NativeLibraryDirectory, "libwebp.dll"), l_LibWEBP);
                 }
 
-                if (!File.Exists("Libs/Natives/libwebpdemux.dll")
-                    || Security.SHA1.GetHashString(File.ReadAllBytes("Libs/Natives/libwebpdemux.dll")) != Security.SHA1.GetHashString(l_LibWEBPDemux))
+                if (!File.Exists(Path.Combine(NativeLibraryDirectory, "libwebpdemux.dll"))
+                    || Security.SHA1.GetHashString(File.ReadAllBytes(Path.Combine(NativeLibraryDirectory, "libwebpdemux.dll"))) != Security.SHA1.GetHashString(l_LibWEBPDemux))
                 {
-                    File.WriteAllBytes("Libs/Natives/libwebpdemux.dll", l_LibWEBPDemux);
+                    File.WriteAllBytes(Path.Combine(NativeLibraryDirectory, "libwebpdemux.dll"), l_LibWEBPDemux);
                 }
             }
             catch (Exception l_Exception)

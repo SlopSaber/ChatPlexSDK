@@ -114,11 +114,11 @@ namespace CP_SDK.Animation.WEBP.Natives
         #endregion
 
         #region Natives
-        [DllImport("Libs/Natives/libwebp.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPGetFeaturesInternal")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebp.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPGetFeaturesInternal")]
         private static extern VP8StatusCode Native_WebPGetFeaturesInternal([In()] IntPtr rawWebP, UIntPtr data_size, ref WebPBitstreamFeatures features, int WEBP_DECODER_ABI_VERSION);
-        [DllImport("Libs/Natives/libwebp.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPDecodeBGRInto")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebp.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPDecodeBGRInto")]
         private static extern int Native_WebPDecodeBGRInto([In()] IntPtr data, UIntPtr data_size, IntPtr output_buffer, int output_buffer_size, int output_stride);
-        [DllImport("Libs/Natives/libwebp.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPDecodeBGRAInto")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebp.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPDecodeBGRAInto")]
         private static extern int Native_WebPDecodeBGRAInto([In()] IntPtr data, UIntPtr data_size, IntPtr output_buffer, int output_buffer_size, int output_stride);
         #endregion
     }

@@ -102,15 +102,15 @@ namespace CP_SDK.Animation.WEBP.Natives
         #endregion
 
         #region Natives
-        [DllImport("Libs/Natives/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderNewInternal")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderNewInternal")]
         private static extern IntPtr Native_WebPAnimDecoderNewInternal(ref WebPData buffer, UInt64 dec_options, UInt64 abi_version);
-        [DllImport("Libs/Natives/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderDelete")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderDelete")]
         private static extern int Native_WebPAnimDecoderDelete(IntPtr dec);
-        [DllImport("Libs/Natives/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderGetInfo")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderGetInfo")]
         private static extern int Native_WebPAnimDecoderGetInfo(IntPtr dec, ref WebPAnimInfo info);
-        [DllImport("Libs/Natives/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderHasMoreFrames")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderHasMoreFrames")]
         private static extern int Native_WebPAnimDecoderHasMoreFrames(IntPtr dec);
-        [DllImport("Libs/Natives/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderGetNext")]
+        [DllImport(ChatPlexSDK.NativeLibraryDirectory + "/libwebpdemux.dll", CallingConvention = CallingConvention.Cdecl, EntryPoint = "WebPAnimDecoderGetNext")]
         private static extern int Native_WebPAnimDecoderGetNext(IntPtr dec, ref IntPtr output_buffer, ref int timestamp);
         #endregion
     }
