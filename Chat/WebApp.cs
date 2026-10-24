@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace CP_SDK.Chat
@@ -20,13 +20,15 @@ namespace CP_SDK.Chat
         /// </summary>
         private static HttpListener m_Listener;
         /// <summary>
-        /// Cancellation token
+        /// Listener lifecycle lock
         /// </summary>
-        private static CancellationTokenSource m_CancellationToken;
+        private static readonly object m_ListenerLock = new object();
         /// <summary>
         /// Page data
         /// </summary>
         private static string m_PageData;
+
+        internal static int Port { get; private set; }
 
         ////////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////////
@@ -34,32 +36,88 @@ namespace CP_SDK.Chat
         /// <summary>
         /// Start the webapp
         /// </summary>
-        internal static void Start()
+        internal static bool Start()
         {
-            if (m_PageData == null)
-                m_PageData = Misc.Resources.FromRelPathStr(Assembly.GetExecutingAssembly(), "CP_SDK.Chat.Resources.index.html");
+            lock (m_ListenerLock)
+            {
+                if (m_Listener != null)
+                    return true;
 
-            if (m_Listener != null)
-                return;
+                if (m_PageData == null)
+                    m_PageData = Misc.Resources.FromRelPathStr(Assembly.GetExecutingAssembly(), "CP_SDK.Chat.Resources.index.html");
 
-            m_CancellationToken = new CancellationTokenSource();
-            m_Listener          = new HttpListener();
-            m_Listener.Prefixes.Add($"http://localhost:{ChatModSettings.Instance.WebAppPort}/");
+                var l_PreferredPort = ChatModSettings.Instance.WebAppPort;
+                if (l_PreferredPort < 1 || l_PreferredPort > 65535)
+                {
+                    ChatPlexSDK.Logger.Warning("[CP_SDK.Chat][WebApp.Start] Invalid configuration port; chat remains available.");
+                    return false;
+                }
 
+                Exception l_LastException = null;
+                for (int l_Attempt = 0; l_Attempt < 8 && l_PreferredPort + l_Attempt <= 65535; l_Attempt++)
+                {
+                    var l_Port = l_PreferredPort + l_Attempt;
+                    var l_Listener = new HttpListener();
+                    l_Listener.Prefixes.Add($"http://localhost:{l_Port}/");
+
+                    try
+                    {
+                        l_Listener.Start();
+                    }
+                    catch (Exception l_Exception) when (l_Exception is HttpListenerException || l_Exception is SocketException)
+                    {
+                        l_Listener.Close();
+                        l_LastException = l_Exception;
+                        if (l_Exception is SocketException l_SocketException && l_SocketException.SocketErrorCode == SocketError.AddressAlreadyInUse
+                            || l_Exception is HttpListenerException l_ListenerException && (l_ListenerException.NativeErrorCode == 183 || l_ListenerException.NativeErrorCode == 10048))
+                            continue;
+                        break;
+                    }
+
+                    m_Listener = l_Listener;
+                    Port = l_Port;
+                    Task.Run(() => Listen(l_Listener));
+                    if (l_Port != l_PreferredPort)
+                        ChatPlexSDK.Logger.Info($"[CP_SDK.Chat][WebApp.Start] Configuration port {l_PreferredPort} is busy; using http://localhost:{l_Port}/ for this process.");
+                    return true;
+                }
+
+                ChatPlexSDK.Logger.Warning("[CP_SDK.Chat][WebApp.Start] Configuration listener is unavailable; chat remains available.");
+                ChatPlexSDK.Logger.Warning(l_LastException);
+                return false;
+            }
+        }
+
+        private static void Listen(HttpListener p_Listener)
+        {
             try
             {
-                m_Listener.Start();
-
-                Task.Run(() =>
-                {
-                    while (!m_CancellationToken.IsCancellationRequested)
-                        OnContext(m_Listener.GetContext());
-                }).ConfigureAwait(false);
+                while (p_Listener.IsListening)
+                    OnContext(p_Listener.GetContext());
             }
-            catch (HttpListenerException l_Exception)
+            catch (ObjectDisposedException) { }
+            catch (Exception l_Exception)
             {
-                ChatPlexSDK.Logger.Error("[CP_SDK.Chat][WebApp.Start] Can't start the agent to listen transaction" + l_Exception);
-                return;
+                lock (m_ListenerLock)
+                {
+                    if (m_Listener == p_Listener)
+                    {
+                        ChatPlexSDK.Logger.Error("[CP_SDK.Chat][WebApp.Listen] Configuration listener stopped unexpectedly.");
+                        ChatPlexSDK.Logger.Error(l_Exception);
+                    }
+                }
+            }
+            finally
+            {
+                lock (m_ListenerLock)
+                {
+                    if (m_Listener == p_Listener)
+                    {
+                        m_Listener = null;
+                        Port = 0;
+                    }
+                    p_Listener.Close();
+                }
             }
         }
         /// <summary>
@@ -67,9 +125,15 @@ namespace CP_SDK.Chat
         /// </summary>
         internal static void Stop()
         {
-            if (m_CancellationToken != null)
+            lock (m_ListenerLock)
             {
-                m_CancellationToken.Cancel();
+                var l_Listener = m_Listener;
+                if (l_Listener == null)
+                    return;
+
+                m_Listener = null;
+                Port = 0;
+                l_Listener.Close();
                 ChatPlexSDK.Logger.Info("[CP_SDK.Chat][WebApp.Stop] Stopped");
             }
         }

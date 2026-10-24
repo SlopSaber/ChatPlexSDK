@@ -138,7 +138,8 @@ namespace CP_SDK.Chat
         /// </summary>
         public static void OpenWebConfiguration()
         {
-            Process.Start($"http://localhost:{ChatModSettings.Instance.WebAppPort}");
+            if (WebApp.Start())
+                Process.Start($"http://localhost:{WebApp.Port}");
         }
         /// <summary>
         /// Recache all the emotes
@@ -201,9 +202,7 @@ namespace CP_SDK.Chat
                 m_ChatCoreMutiplixer.OnLiveStatusUpdated            += ChatCoreMutiplixer_OnLiveStatusUpdated;
 
                 /// WebApp
-                WebApp.Start();
-
-                if (ChatModSettings.Instance.LaunchWebAppOnStartup)
+                if (WebApp.Start() && ChatModSettings.Instance.LaunchWebAppOnStartup)
                     OpenWebConfiguration();
             }
             catch (System.Exception l_Exception)
