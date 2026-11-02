@@ -19,6 +19,8 @@ namespace CP_SDK.Chat
         /// Listener
         /// </summary>
         private static HttpListener m_Listener;
+        private const int TwitchOAuthCallbackPort = 8339;
+        private static HttpListener m_CallbackListener;
         /// <summary>
         /// Listener lifecycle lock
         /// </summary>
@@ -41,7 +43,11 @@ namespace CP_SDK.Chat
             lock (m_ListenerLock)
             {
                 if (m_Listener != null)
+                {
+                    if (Port != TwitchOAuthCallbackPort)
+                        StartCallbackListener();
                     return true;
+                }
 
                 if (m_PageData == null)
                     m_PageData = Misc.Resources.FromRelPathStr(Assembly.GetExecutingAssembly(), "CP_SDK.Chat.Resources.index.html");
@@ -77,6 +83,8 @@ namespace CP_SDK.Chat
                     m_Listener = l_Listener;
                     Port = l_Port;
                     Task.Run(() => Listen(l_Listener));
+                    if (l_Port != TwitchOAuthCallbackPort)
+                        StartCallbackListener();
                     if (l_Port != l_PreferredPort)
                         ChatPlexSDK.Logger.Info($"[CP_SDK.Chat][WebApp.Start] Configuration port {l_PreferredPort} is busy; using http://localhost:{l_Port}/ for this process.");
                     return true;
@@ -86,6 +94,30 @@ namespace CP_SDK.Chat
                 ChatPlexSDK.Logger.Warning(l_LastException);
                 return false;
             }
+        }
+
+        private static void StartCallbackListener()
+        {
+            if (m_CallbackListener != null)
+                return;
+
+            var l_Listener = new HttpListener();
+            l_Listener.Prefixes.Add($"http://localhost:{TwitchOAuthCallbackPort}/");
+
+            try
+            {
+                l_Listener.Start();
+            }
+            catch (Exception l_Exception) when (l_Exception is HttpListenerException || l_Exception is SocketException)
+            {
+                l_Listener.Close();
+                ChatPlexSDK.Logger.Warning($"[CP_SDK.Chat][WebApp.Start] Twitch OAuth callback listener on port {TwitchOAuthCallbackPort} is unavailable; token acquisition cannot complete.");
+                ChatPlexSDK.Logger.Warning(l_Exception);
+                return;
+            }
+
+            m_CallbackListener = l_Listener;
+            Task.Run(() => Listen(l_Listener));
         }
 
         private static void Listen(HttpListener p_Listener)
@@ -105,6 +137,11 @@ namespace CP_SDK.Chat
                         ChatPlexSDK.Logger.Error("[CP_SDK.Chat][WebApp.Listen] Configuration listener stopped unexpectedly.");
                         ChatPlexSDK.Logger.Error(l_Exception);
                     }
+                    else if (m_CallbackListener == p_Listener)
+                    {
+                        ChatPlexSDK.Logger.Error("[CP_SDK.Chat][WebApp.Listen] Twitch OAuth callback listener stopped unexpectedly.");
+                        ChatPlexSDK.Logger.Error(l_Exception);
+                    }
                 }
             }
             finally
@@ -116,6 +153,8 @@ namespace CP_SDK.Chat
                         m_Listener = null;
                         Port = 0;
                     }
+                    if (m_CallbackListener == p_Listener)
+                        m_CallbackListener = null;
                     p_Listener.Close();
                 }
             }
@@ -128,12 +167,15 @@ namespace CP_SDK.Chat
             lock (m_ListenerLock)
             {
                 var l_Listener = m_Listener;
-                if (l_Listener == null)
+                var l_CallbackListener = m_CallbackListener;
+                if (l_Listener == null && l_CallbackListener == null)
                     return;
 
                 m_Listener = null;
+                m_CallbackListener = null;
                 Port = 0;
-                l_Listener.Close();
+                l_Listener?.Close();
+                l_CallbackListener?.Close();
                 ChatPlexSDK.Logger.Info("[CP_SDK.Chat][WebApp.Stop] Stopped");
             }
         }
