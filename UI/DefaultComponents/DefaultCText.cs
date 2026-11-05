@@ -36,9 +36,22 @@ namespace CP_SDK.UI.DefaultComponents
             m_LElement = gameObject.AddComponent<LayoutElement>();
             m_LElement.minHeight = 5.0f;
 
+            /// TextMeshPro resolves its font in Awake; assign it before the component wakes up
+            var l_WasActive = gameObject.activeSelf;
+            if (l_WasActive)
+                gameObject.SetActive(false);
+
             m_TMProUGUI = gameObject.AddComponent(UISystem.Override_UnityComponent_TextMeshProUGUI) as TextMeshProUGUI;
-            m_TMProUGUI.font                = UISystem.Override_GetUIFont()                 ?? m_TMProUGUI.font;
-            m_TMProUGUI.fontSharedMaterial  = UISystem.Override_GetUIFontSharedMaterial()   ?? m_TMProUGUI.fontSharedMaterial;
+            var l_Font = UISystem.Override_GetUIFont();
+            if (l_Font)
+                m_TMProUGUI.font = l_Font;
+
+            var l_SharedMaterial = UISystem.Override_GetUIFontSharedMaterial();
+            if (l_SharedMaterial)
+                m_TMProUGUI.fontSharedMaterial = l_SharedMaterial;
+
+            if (l_WasActive)
+                gameObject.SetActive(true);
             m_TMProUGUI.margin              = new Vector4(0.0f, 0.0f, 0.0f, 0.0f);
             m_TMProUGUI.fontSize            = 3.4f * UISystem.FontScale;
             m_TMProUGUI.color               = UISystem.TextColor;
